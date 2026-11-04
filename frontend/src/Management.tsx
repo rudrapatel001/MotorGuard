@@ -97,7 +97,7 @@ export default function Management() {
           <table className="w-full text-left">
             <thead className="bg-gray-100 text-gray-600 text-sm">
               <tr>
-                <th className="px-6 py-3 font-medium">Facility ID</th>
+                <th className="px-6 py-3 font-medium">S.No.</th>
                 <th className="px-6 py-3 font-medium">Facility Name</th>
                 <th className="px-6 py-3 font-medium">Location</th>
               </tr>
@@ -105,9 +105,10 @@ export default function Management() {
             <tbody className="divide-y divide-gray-100">
               {data.facilities.length === 0 ? (
                 <tr><td colSpan={3} className="px-6 py-6 text-center text-gray-500">No facilities registered.</td></tr>
-              ) : data.facilities.map((fac: any) => (
+              ) : data.facilities.map((fac: any, index: number) => (
                 <tr key={fac.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-gray-500">#{fac.id}</td>
+                  {/* Display sequential row number instead of database ID */}
+                  <td className="px-6 py-4 text-gray-500">{index + 1}</td>
                   <td className="px-6 py-4 font-medium text-gray-800">{fac.name}</td>
                   <td className="px-6 py-4 text-gray-600">{fac.location}</td>
                 </tr>
@@ -126,9 +127,9 @@ export default function Management() {
           <table className="w-full text-left">
             <thead className="bg-gray-100 text-gray-600 text-sm">
               <tr>
-                <th className="px-6 py-3 font-medium">Equip ID</th>
+                <th className="px-6 py-3 font-medium">S.No.</th>
                 <th className="px-6 py-3 font-medium">Name</th>
-                <th className="px-6 py-3 font-medium">Facility ID</th>
+                <th className="px-6 py-3 font-medium">Facility</th>
                 <th className="px-6 py-3 font-medium">Status</th>
                 {user?.role === 'Admin' && <th className="px-6 py-3 font-medium text-right">Actions</th>}
               </tr>
@@ -136,29 +137,37 @@ export default function Management() {
             <tbody className="divide-y divide-gray-100">
               {data.equipment.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-500">No equipment registered.</td></tr>
-              ) : data.equipment.map((eq: any) => (
-                <tr key={eq.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-gray-500">#{eq.id}</td>
-                  <td className="px-6 py-4 font-medium text-gray-800">{eq.name}</td>
-                  <td className="px-6 py-4 text-gray-600">Facility #{eq.facility_id}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded-full font-semibold ${eq.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-800'}`}>
-                      {eq.status}
-                    </span>
-                  </td>
-                  {user?.role === 'Admin' && (
-                    <td className="px-6 py-4 text-right flex justify-end">
-                      <button 
-                        onClick={() => deleteEquipment(eq.id)} 
-                        className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded transition-colors"
-                        title="Delete Equipment"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+              ) : data.equipment.map((eq: any, index: number) => {
+                // Look up the facility name based on the equipment's facility_id
+                const parentFacility = data.facilities.find((f: any) => f.id === eq.facility_id);
+                
+                return (
+                  <tr key={eq.id} className="hover:bg-gray-50">
+                    {/* Display sequential row number instead of database ID */}
+                    <td className="px-6 py-4 text-gray-500">{index + 1}</td>
+                    <td className="px-6 py-4 font-medium text-gray-800">{eq.name}</td>
+                    <td className="px-6 py-4 text-gray-600">
+                      {parentFacility ? (parentFacility as any).name : 'Unknown Facility'}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 text-xs rounded-full font-semibold ${eq.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-800'}`}>
+                        {eq.status}
+                      </span>
+                    </td>
+                    {user?.role === 'Admin' && (
+                      <td className="px-6 py-4 text-right flex justify-end">
+                        <button 
+                          onClick={() => deleteEquipment(eq.id)} 
+                          className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded transition-colors"
+                          title="Delete Equipment"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
