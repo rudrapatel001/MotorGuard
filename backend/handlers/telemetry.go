@@ -35,7 +35,9 @@ func SubmitReading(c *fiber.Ctx) error {
 	}
 
 	var validID int
-	err := database.DB.QueryRow(`SELECT e.id FROM equipment e JOIN facilities f ON e.facility_id = f.id WHERE e.id = $1 AND f.customer_id = $2`, r.EquipmentID, customerID).Scan(&validID)
+	var status string
+
+	err := database.DB.QueryRow(`SELECT e.id, e.status FROM equipment e JOIN facilities f ON e.facility_id = f.id WHERE e.id = $1 AND f.customer_id = $2`, r.EquipmentID, customerID).Scan(&validID, &status)
 	if err != nil {
 		return c.Status(403).JSON(fiber.Map{"error": "Invalid equipment or unauthorized"})
 	}
@@ -50,7 +52,10 @@ func SubmitReading(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save reading"})
 	}
 
-	evaluateFaults(r.EquipmentID, r)
+	if status == "Active" {
+		evaluateFaults(r.EquipmentID, r)
+	}
+
 	return c.Status(201).JSON(fiber.Map{"message": "Reading saved successfully"})
 }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from './AuthContext';
-import { Plus, Trash2, MapPin } from 'lucide-react';
+import { Plus, Trash2, MapPin, Power } from 'lucide-react';
 
 export default function Management() {
   const { user } = useAuth();
@@ -53,6 +53,20 @@ export default function Management() {
       await axios.delete(`http://localhost:8080/api/equipment/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       fetchData();
     } catch (err) { alert('Failed to delete. Ensure you have Admin privileges.'); }
+  };
+
+  const toggleStatus = async (eq: any) => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } };
+      const newStatus = eq.status === 'Active' ? 'Inactive' : 'Active';
+      
+      await axios.put(`http://localhost:8080/api/equipment/${eq.id}`, { 
+        name: eq.name, 
+        status: newStatus 
+      }, config);
+      
+      fetchData();
+    } catch (err) { alert('Failed to update status.'); }
   };
 
   return (
@@ -107,7 +121,6 @@ export default function Management() {
                 <tr><td colSpan={3} className="px-6 py-6 text-center text-gray-500">No facilities registered.</td></tr>
               ) : data.facilities.map((fac: any, index: number) => (
                 <tr key={fac.id} className="hover:bg-gray-50">
-                  {/* Display sequential row number instead of database ID */}
                   <td className="px-6 py-4 text-gray-500">{index + 1}</td>
                   <td className="px-6 py-4 font-medium text-gray-800">{fac.name}</td>
                   <td className="px-6 py-4 text-gray-600">{fac.location}</td>
@@ -131,19 +144,18 @@ export default function Management() {
                 <th className="px-6 py-3 font-medium">Name</th>
                 <th className="px-6 py-3 font-medium">Facility</th>
                 <th className="px-6 py-3 font-medium">Status</th>
-                {user?.role === 'Admin' && <th className="px-6 py-3 font-medium text-right">Actions</th>}
+                {/* Actions column visible to Admins and Engineers */}
+                {user?.role !== 'Viewer' && <th className="px-6 py-3 font-medium text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {data.equipment.length === 0 ? (
                 <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-500">No equipment registered.</td></tr>
               ) : data.equipment.map((eq: any, index: number) => {
-                // Look up the facility name based on the equipment's facility_id
                 const parentFacility = data.facilities.find((f: any) => f.id === eq.facility_id);
                 
                 return (
                   <tr key={eq.id} className="hover:bg-gray-50">
-                    {/* Display sequential row number instead of database ID */}
                     <td className="px-6 py-4 text-gray-500">{index + 1}</td>
                     <td className="px-6 py-4 font-medium text-gray-800">{eq.name}</td>
                     <td className="px-6 py-4 text-gray-600">
@@ -154,15 +166,28 @@ export default function Management() {
                         {eq.status}
                       </span>
                     </td>
-                    {user?.role === 'Admin' && (
-                      <td className="px-6 py-4 text-right flex justify-end">
+                    
+                    {user?.role !== 'Viewer' && (
+                      <td className="px-6 py-4 text-right flex justify-end gap-2">
+                        
                         <button 
-                          onClick={() => deleteEquipment(eq.id)} 
-                          className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded transition-colors"
-                          title="Delete Equipment"
+                          onClick={() => toggleStatus(eq)} 
+                          className="text-orange-500 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 p-2 rounded transition-colors"
+                          title={eq.status === 'Active' ? "Mark Inactive" : "Mark Active"}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Power className="w-4 h-4" />
                         </button>
+
+                        {/* Delete (Admin Only) */}
+                        {user?.role === 'Admin' && (
+                          <button 
+                            onClick={() => deleteEquipment(eq.id)} 
+                            className="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded transition-colors"
+                            title="Delete Equipment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     )}
                   </tr>
