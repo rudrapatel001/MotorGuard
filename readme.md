@@ -2,14 +2,16 @@
 
 MotorGuard is a centralized, multi-tenant IoT platform built to monitor industrial electric motors. It features a robust, concurrent backend architecture, a real-time fault detection engine, and a React-based analytics dashboard.
 
-## Architecture Overview
+## 🏗️ Architecture Overview
 
 - **Backend:** Go (Fiber framework) selected for high-concurrency telemetry ingestion and minimal memory footprint. Organized into modular layers (handlers, database, models, middleware, routes).
-- **Database:** PostgreSQL, utilizing fully normalized tables with strictly enforced foreign keys and cascading deletes. `golang-migrate` is used for schema version control.
+- **Database:** PostgreSQL, utilizing fully normalized tables with strictly enforced foreign keys and cascading deletes. `golang-migrate` is used for automated schema version control.
 - **Frontend:** React (Vite) + TypeScript, styled with Tailwind CSS, and visualizing telemetry via Recharts. Organized with React Router for protected navigation.
 - **Tenant Isolation Strategy:** Multi-tenancy is enforced strictly at the database query level. Every protected API route extracts the user's `customer_id` from their JWT. All `SELECT`, `UPDATE`, and `DELETE` queries dynamically `JOIN` the target record against the `facilities` table to ensure the `customer_id` matches the token. Data hiding on the frontend is purely cosmetic; backend queries physically block cross-tenant access.
 
-## Setup Instructions
+---
+
+## 🚀 Setup Instructions
 
 ### Prerequisites
 
@@ -25,9 +27,24 @@ Start the PostgreSQL container:
 docker-compose up -d
 ```
 
-### 2. Backend Setup
+### 2. Database Migrations (`golang-migrate`)
 
-Navigate to the backend directory, install dependencies, and run the server. (The application will automatically run the `.up.sql` migrations on startup).
+MotorGuard uses `golang-migrate` with version-controlled `.up.sql` and `.down.sql` files located in `backend/migrations/`.
+
+- **Option A (Automatic):** When you run the backend server, it automatically executes any pending `.up.sql` migrations against your PostgreSQL database on startup.
+- **Option B (Manual CLI):** If you have the `migrate` CLI tool installed, you can manage migrations manually from your terminal inside the `backend` folder:
+
+  ```bash
+  # Apply migrations up
+  migrate -path ./migrations -database "postgres://motorguard:supersecretpassword@localhost:5432/motorguard_db?sslmode=disable" up
+
+  # Rollback last migration (Down)
+  migrate -path ./migrations -database "postgres://motorguard:supersecretpassword@localhost:5432/motorguard_db?sslmode=disable" down 1
+  ```
+
+### 3. Backend Setup
+
+Navigate to the backend directory, install dependencies, and run the server:
 
 ```bash
 cd backend
@@ -35,11 +52,11 @@ go mod tidy
 go run main.go
 ```
 
-_The backend will be running on http://localhost:8080_
+_The backend will be running on `http://localhost:8080`_
 
-### 3. Frontend Setup
+### 4. Frontend Setup
 
-Navigate to the frontend directory, install dependencies, and start the development server.
+Navigate to the frontend directory, install dependencies, and start the development server:
 
 ```bash
 cd frontend
@@ -47,7 +64,7 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 
-_The frontend will be running on http://localhost:5173_
+_The frontend will be running on `http://localhost:5173`_
 
 ---
 
