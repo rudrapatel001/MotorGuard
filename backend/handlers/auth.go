@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"motorguard-backend/database"
 	"motorguard-backend/middleware"
 	"motorguard-backend/models"
@@ -18,21 +20,60 @@ func RegisterUser(c *fiber.Ctx) error {
 	}
 
 	var customerID int
-	err := database.DB.QueryRow("SELECT id FROM customers WHERE id = $1", req.CustomerID).Scan(&customerID)
-	if err != nil {
-		err = database.DB.QueryRow("INSERT INTO customers (name) VALUES ($1) RETURNING id", "Default Customer").Scan(&customerID)
+	assignedRole := req.Role
+	if assignedRole == "" {
+		assignedRole = "Viewer"
+	}
+
+	// Read the invitation token from the URL query parameters (?token=...)
+	inviteToken := c.Query("token")
+
+	if inviteToken != "" {
+		// Hash the provided token to match against token_hash in the database
+		hasher := sha256.New()
+		hasher.Write([]byte(inviteToken))
+		tokenHash := hex.EncodeToString(hasher.Sum(nil))
+
+		var inviteID int
+		var inviteCustomerID int
+		var inviteRole string
+
+		err := database.DB.QueryRow(`
+			SELECT id, customer_id, role FROM invitations 
+			WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > NOW()`,
+			tokenHash,
+		).Scan(&inviteID, &inviteCustomerID, &inviteRole)
+
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to create customer"})
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid or expired invitation link"})
+		}
+
+		customerID = inviteCustomerID
+		assignedRole = inviteRole
+
+		// Mark the invitation as accepted
+		_, _ = database.DB.Exec(`UPDATE invitations SET accepted_at = NOW() WHERE id = $1`, inviteID)
+	} else {
+		// Standard standalone registration: create a new customer tenant
+		err := database.DB.QueryRow("SELECT id FROM customers WHERE id = $1", req.CustomerID).Scan(&customerID)
+		if err != nil {
+			err = database.DB.QueryRow("INSERT INTO customers (name) VALUES ($1) RETURNING id", "Default Customer").Scan(&customerID)
+			if err != nil {
+				return c.Status(500).JSON(fiber.Map{"error": "Failed to create customer"})
+			}
 		}
 	}
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), 10)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), 10)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to process password"})
+	}
 
 	var userID int
 	err = database.DB.QueryRow(`
 		INSERT INTO users (customer_id, name, email, password_hash, role) 
 		VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		customerID, req.Name, req.Email, hashedPassword, req.Role,
+		customerID, req.Name, req.Email, hashedPassword, assignedRole,
 	).Scan(&userID)
 
 	if err != nil {

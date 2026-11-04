@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"motorguard-backend/database"
 	"motorguard-backend/models"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -51,7 +55,7 @@ func CreateFacility(c *fiber.Ctx) error {
 // --- EQUIPMENT ---
 func GetEquipment(c *fiber.Ctx) error {
 	rows, err := database.DB.Query(`
-		SELECT e.id, e.facility_id, e.name, e.motor_type, e.rated_voltage, e.rated_current, e.rated_rpm, e.status 
+		SELECT e.id, e.facility_id, e.name, e.motor_type, e.rated_voltage, e.rated_current, e.rated_rpm, COALESCE(TO_CHAR(e.installation_date, 'YYYY-MM-DD'), ''), e.status 
 		FROM equipment e JOIN facilities f ON e.facility_id = f.id WHERE f.customer_id = $1`, c.Locals("customer_id").(int))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
@@ -61,7 +65,7 @@ func GetEquipment(c *fiber.Ctx) error {
 	equipments := []models.Equipment{}
 	for rows.Next() {
 		var eq models.Equipment
-		rows.Scan(&eq.ID, &eq.FacilityID, &eq.Name, &eq.MotorType, &eq.RatedVoltage, &eq.RatedCurrent, &eq.RatedRPM, &eq.Status)
+		rows.Scan(&eq.ID, &eq.FacilityID, &eq.Name, &eq.MotorType, &eq.RatedVoltage, &eq.RatedCurrent, &eq.RatedRPM, &eq.InstallationDate, &eq.Status)
 		equipments = append(equipments, eq)
 	}
 	if err := rows.Err(); err != nil {
@@ -86,7 +90,12 @@ func CreateEquipment(c *fiber.Ctx) error {
 	}
 
 	var id int
-	err = database.DB.QueryRow(`INSERT INTO equipment (facility_id, name, motor_type, rated_voltage, rated_current, rated_rpm, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`, eq.FacilityID, eq.Name, eq.MotorType, eq.RatedVoltage, eq.RatedCurrent, eq.RatedRPM, "Active").Scan(&id)
+	err = database.DB.QueryRow(`
+		INSERT INTO equipment (facility_id, name, motor_type, rated_voltage, rated_current, rated_rpm, installation_date, status) 
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::date, $8) RETURNING id`,
+		eq.FacilityID, eq.Name, eq.MotorType, eq.RatedVoltage, eq.RatedCurrent, eq.RatedRPM, eq.InstallationDate, "Active",
+	).Scan(&id)
+
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to add equipment"})
 	}
@@ -180,4 +189,41 @@ func GetAnalytics(c *fiber.Ctx) error {
 		"total_facilities": totalFacilities, "total_equipment": totalEquipment,
 		"active_equipment": activeEquipment, "critical_alerts": criticalAlerts,
 	})
+}
+
+func InviteTeamMember(c *fiber.Ctx) error {
+	customerID := c.Locals("customer_id").(int)
+	userID := c.Locals("user_id").(int)
+	role := c.Locals("role").(string)
+
+	if role != "Admin" {
+		return c.Status(403).JSON(fiber.Map{"error": "Only Admins can invite team members"})
+	}
+
+	var req struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid payload"})
+	}
+
+	// Generate secure raw token and compute its SHA-256 hash
+	rawToken := fmt.Sprintf("%d-%s-%d", time.Now().UnixNano(), req.Email, time.Now().Unix())
+	hasher := sha256.New()
+	hasher.Write([]byte(rawToken))
+	tokenHash := hex.EncodeToString(hasher.Sum(nil))
+
+	expiresAt := time.Now().Add(48 * time.Hour)
+
+	_, err := database.DB.Exec(
+		`INSERT INTO invitations (customer_id, email, role, token_hash, invited_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+		customerID, req.Email, req.Role, tokenHash, userID, expiresAt,
+	)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to create invitation"})
+	}
+
+	inviteLink := fmt.Sprintf("http://localhost:5173/register?token=%s&email=%s", rawToken, req.Email)
+	return c.Status(201).JSON(fiber.Map{"invite_link": inviteLink})
 }

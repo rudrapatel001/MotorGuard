@@ -18,6 +18,8 @@ func SetupRoutes(app *fiber.App) {
 
 	api.Put("/profile", handlers.UpdateProfile)
 
+	api.Post("/invite", handlers.InviteTeamMember)
+
 	api.Get("/facilities", handlers.GetFacilities)
 	api.Post("/facilities", handlers.CreateFacility)
 
