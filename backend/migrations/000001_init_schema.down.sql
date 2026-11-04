@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS fault_alerts;
+DROP TABLE IF EXISTS electrical_readings;
+DROP TABLE IF EXISTS equipment;
+DROP TABLE IF EXISTS facilities;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS customers;
